@@ -11,7 +11,12 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = ['Click>=6.0', 'pokebase==1.2.0']
+requirements = ['Click>=7.0',
+                'pokebase==1.2.0',
+                'pyaml>=18.11.0',
+                'fabulous>=0.3.0',
+                'click_completion>=0.5.0',
+                'psutil>=5.5.1']
 
 setup_requirements = []
 
@@ -55,7 +60,8 @@ setup(
     },
     install_requires=requirements,
     extras_require={
-        'dev': dev_requirements
+        'dev': dev_requirements,
+        'test': test_requirements
     },
     setup_requires=setup_requirements,
     tests_require=test_requirements,

@@ -20,7 +20,7 @@ Pokemon Trainer
 
 
 
-Application to help ttrain competetive pokemon
+Application to help you be the very best, like no one ever was.
 
 
 * Free software: GNU General Public License v3
@@ -29,6 +29,13 @@ Application to help ttrain competetive pokemon
 
 Features
 --------
+* search https://pokeapi.co/ api for pokemon, types and moves
+* tab completion for pokemon, types and moves
+* type coverage analysis for pokemon, move sets and teams
+
+pip install -e '.[test,dev]'
+_POKEMON_TRAINER_COMPLETE=source pokemon-trainer > pokemon-trainer-complete.sh
+source ./pokemon-trainer-complete.sh
 
 * TODO
 

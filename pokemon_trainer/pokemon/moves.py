@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 
 from enum import Enum
+from .types import Type, TypeCoverage
+from .versions import Generation
+from .util import *
 import pokebase as pb
 import textwrap
 
@@ -24,6 +27,10 @@ class Move(object):
         self.generation = generation
         self.__dict__.update(kwargs)
 
+    @staticmethod
+    def resource_list():
+        return pb.APIResourceList('move')
+
     @classmethod
     def search(cls, id_or_name):
         move = pb.move(id_or_name)
@@ -38,7 +45,7 @@ class Move(object):
                     data[field] = [e.effect for e in move.__dict__[field]]
                 else:
                     data[field] = move.__dict__[field]
-            elif field in move.meta.__dict__:
+            elif 'meta' in move.__dict__ and field in move.meta.__dict__:
                 data[field] = move.meta.__dict__[field]
         return cls(move.id, move.name, damage_class, type_, generation, **data)
 
@@ -48,6 +55,9 @@ class Move(object):
 
     def to_dict(self):
         return {'id': self.id, 'name': self.name, 'damage_class': self.damage_class.name, 'type': self.type_.name}
+
+    def type_coverage(self):
+        return self.type_.type_coverage()
 
     def __eq__(self, other):
         if type(other) is not Move:
@@ -61,9 +71,6 @@ class Move(object):
         return self.name.__cmp__(other.name)
 
     def __str__(self):
-        double_damage = sorted([t.name for t in self.type_.damage_relations[DamageRelation.DOUBLE_DAMAGE_TO]])
-        half_damage = sorted([t.name for t in self.type_.damage_relations[DamageRelation.HALF_DAMAGE_TO]])
-        no_damage = sorted([t.name for t in self.type_.damage_relations[DamageRelation.NO_DAMAGE_TO]])
         meta_fields = ["effect_chance", "crit_rate", "drain", "flinch_chance", "healing", "max_hits", "max_turns",
                        "min_hits", "min_turns", "stat_chance"]
         meta = [(f, self.__dict__[f]) for f in meta_fields if self.__dict__[f] is not None]
@@ -72,9 +79,7 @@ class Move(object):
             'damage_class': self.damage_class.name,
             'type_name': self.type_.name,
             'description': '. '.join(self.effect_entries),
-            'no_damage': ', '.join(no_damage),
-            'half_damage': ', '.join(half_damage),
-            'double_damage': ', '.join(double_damage),
+            'coverage': self.type_coverage().effective_offensive_coverage(),
             'accuracy': self.accuracy,
             'power': self.power,
             'pp': self.pp
@@ -87,9 +92,7 @@ class Move(object):
         
         {description}
         
-        No Damage To     (0x  ): {no_damage}
-        Half Damage To   (1/2x): {half_damage}
-        Double Damage To (2x  ): {no_damage}
+        {coverage}
         
         Meta
         \
@@ -108,11 +111,13 @@ class MoveSet(object):
         tmp = [self.first, self.second, self.third, self.fourth]
         return [m for m in tmp if m is not None]
 
-    def damage_classes(self):
-        return list(set([m.damage_class for m in self.moves()]))
+    def damage_classes(self, unique=True):
+        classes = [m.damage_class for m in self.moves()]
+        return list(set(classes)) if unique else classes
 
-    def damage_types(self):
-        return list(set([m.type_ for m in self.moves()]))
+    def damage_types(self, unique=True):
+        types = [m.type_ for m in self.moves()]
+        return list(set(types)) if unique else types
 
     def _name_or_empty(self, move):
         return move.name if move is not None else 'Empty'
@@ -135,23 +140,11 @@ class MoveSet(object):
         }
         return cls(**moves)
 
-    def type_coverage(self):
-        double_damage = []
-        half_damage = []
-        no_damage = []
-        for t in self.damage_types():
-            double_damage += t.damage_relations[DamageRelation.DOUBLE_DAMAGE_TO]
-            half_damage += t.damage_relations[DamageRelation.HALF_DAMAGE_TO]
-            no_damage += t.damage_relations[DamageRelation.NO_DAMAGE_TO]
-
-        no_damage = [t for t in no_damage if t not in double_damage and t not in half_damage]
-        half_damage = [t for t in half_damage if t not in double_damage and t not in no_damage]
-
-        return {
-            DamageRelation.DOUBLE_DAMAGE_TO: sorted(list(set(double_damage))),
-            DamageRelation.HALF_DAMAGE_TO: sorted(list(set(half_damage))),
-            DamageRelation.NO_DAMAGE_TO: sorted(list(set(no_damage)))
-        }
+    def type_coverage(self) -> TypeCoverage:
+        coverage = TypeCoverage()
+        for move in self.moves():
+            coverage += move.type_coverage()
+        return coverage
 
     def __eq__(self, other):
         if type(other) is not MoveSet:

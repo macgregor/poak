@@ -74,29 +74,29 @@ class Move(object):
         meta_fields = ["effect_chance", "crit_rate", "drain", "flinch_chance", "healing", "max_hits", "max_turns",
                        "min_hits", "min_turns", "stat_chance"]
         meta = [(f, self.__dict__[f]) for f in meta_fields if self.__dict__[f] is not None]
-        args = {
-            'name': self.name,
-            'damage_class': self.damage_class.name,
-            'type_name': self.type_.name,
-            'description': '. '.join(self.effect_entries),
-            'coverage': self.type_coverage().effective_offensive_coverage(),
-            'accuracy': self.accuracy,
-            'power': self.power,
-            'pp': self.pp
-        }
-        return textwrap.dedent("""\
-        {name} ({damage_class}, {type_name})
+
+        formatter = CliFormatter()
+
+        template = """
+        {name:bold} ({damage_class}, {type_name})
         power:    {power} 
         accuracy: {accuracy}
         pp:       {pp}
         
         {description}
-        
-        {coverage}
-        
-        Meta
-        \
-        """.format(**args))+tabulate(meta)
+        """
+        template_data = {
+            'name': self.name,
+            'damage_class': self.damage_class.name,
+            'type_name': self.type_.name,
+            'description': '. '.join(self.effect_entries),
+            'accuracy': self.accuracy,
+            'power': self.power,
+            'pp': self.pp
+        }
+        return formatter.format(template, **template_data) + \
+               '\n\n' + str(self.type_coverage().effective_offensive_coverage()) + \
+               '\n\nMeta\n' + formatter.format('{0:table_no_header}', meta)
 
 
 class MoveSet(object):

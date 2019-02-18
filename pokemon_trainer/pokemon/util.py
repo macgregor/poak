@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 import inspect
 import string
 import textwrap
+import re
 import fabulous.color as color
 from inspect import Signature
 
@@ -20,21 +21,16 @@ def extract_id_or_name(endpoint):
     raise ValueError('No path segments in %s' % (endpoint))
 
 
-def tabulate(tabular_data, first_row_header=False, indent_level=0, **kwargs):
-    buffer = ''
-    if tabular_data:
-        max_key_length = len(max([str(d[0]) for d in tabular_data], key=len))
-        max_value_length = len(max([str(d[1]) for d in tabular_data], key=len))
-        div = 2
-        buffer += '-'*max_key_length + ' '*div + '-'*max_value_length + '\n'
-        first = True
-        for data in tabular_data:
-            buffer += ' '*indent_level + str(data[0]).ljust(max_key_length+div) + str(data[1]).ljust(max_value_length) + '\n'
-            if first_row_header and first:
-                buffer += ' '*indent_level + '-'*max_key_length + ' '*div + '-'*max_value_length + '\n'
-                first = False
-        buffer += ' '*indent_level + '-'*max_key_length + ' '*div + '-'*max_value_length + '\n'
-    return buffer
+def tabulate(tabular_data, first_row_header=False, indent_level=0):
+    """
+    Only supports 2 column tables currently.
+    :param tabular_data:
+    :param first_row_header:
+    :param indent_level:
+    :param kwargs:
+    :return:
+    """
+    return str(Table(tabular_data, first_row_header, indent_level))
 
 
 def has_method(obj, method_name, signature=None):
@@ -65,39 +61,108 @@ def merge_dict_lists(first, second, dedupe=True):
     return merged
 
 
+def non_ansi_str_length(text):
+    ansi_escape = re.compile(r'(\x9B|\x1B\[)[0-?]*[ -/]*[@-~]')
+    scrubbed = ansi_escape.sub('', text)
+    return len(scrubbed)
+
+
+class Table(object):
+    def __init__(self, tabular_data, first_row_header=False, indent_level=0, col_space=2):
+        self.tabular_data = tabular_data
+        self.first_row_header = first_row_header
+        self.indent_level = indent_level
+        self.col_space = col_space
+
+        self.formatter = CliFormatter()
+        self.max_col_lengths = []
+        for col in self.tabular_data[0]:
+            self.max_col_lengths.append(0)
+
+    def __str__(self):
+        processed_data = self._process_tabular_data()
+        buff = ''
+        first = True
+        for row in processed_data:
+            if first:
+                buff += self._header(row) + '\n'
+                first = False
+            else:
+                buff += self._row(row) + '\n'
+        buff += self._div()
+        return buff
+
+    def _header(self, row):
+        if self.first_row_header:
+            return '{}\n{}\n{}'.format(self._div(indent=False), self._row(row), self._div())
+        else:
+            return self._div(indent=False)
+
+    def _row(self, row, indent=True):
+        buff = ' ' * self.indent_level if indent else ''
+        for i in range(0, len(row)):
+            col = str(row[i])
+            right_pad = ' ' * (self.max_col_lengths[i] + self.col_space-non_ansi_str_length(col))
+            buff += col + right_pad
+        return buff
+
+    def _div(self, indent=True):
+        buff = ' ' * self.indent_level if indent else ''
+        for max_col_len in self.max_col_lengths:
+            buff += '-'*max_col_len + ' '*self.col_space
+        return buff
+
+    def _process_tabular_data(self):
+        rows = []
+        for row in self.tabular_data:
+            row_data = []
+            for i in range(0, len(row)):
+                # process text through string formatter
+                col = str(row[i])
+                row_data.append(self.formatter.format(col, dedent=False))
+
+                # calculate new max len for column, not counting ansi characters
+                non_ansi_len = non_ansi_str_length(col)
+                current_max = self.max_col_lengths[i]
+                self.max_col_lengths[i] = non_ansi_len if non_ansi_len > current_max else current_max
+            rows.append(row_data)
+        return rows
+
+
 class CliFormatter(string.Formatter):
+    """
+    Extends string.Formatter to provide some bells and whistles:
+        Tabular Data - `{foo:table}`:
+            tabular_data = [('foo-header', 'bar-header'), ('row1, col1', 'row1, col2)'] # and so on...
+            formatter.format('Here is a table\n{totally_tabular:table}', totally_tabular=tabular_data)
+        ANSI Style Markup - `{foo:bold}`:
+            formatter.format('{good:256_bright_green}, {bad:256_bright_red}', good="Awesome!", bad="Oh no!")
+        Format raw text without an explicit value:
+            formatter.format('{Awesome!:256_bright_green}, {Oh no!:256_bright_red}') # normally would raise a KeyError
+        Auto de-dent - dedent=True (default):
+            multiline_string = '''
+            Normally this would be printed with the leading/trailing \\n and spaces.
+            You could call textwrap.dedent() on the resulting string but the formatter
+            handles it for you.
+            '''
+            formatter.format('No indention:\n{}', multiline_string) # dedent=true by default
+            formatter.format('Indention:\n{}', multiline_string, dedent=False)
+    """
 
     STYLES = {
         'bold': lambda text: color.bold(text),
-        'h1': lambda text: color.h1(text),
         'italic': lambda text: color.italic(text),
-        'section': lambda text: color.section(text),
         'strike': lambda text: color.strike(text),
         'underline': lambda text: color.underline(text),
-        'black': lambda text: color.black(text),
-        'blue': lambda text: color.blue(text),
-        'cyan': lambda text: color.cyan(text),
-        'green': lambda text: color.green(text),
-        'magenta': lambda text: color.magenta(text),
-        'red': lambda text: color.red(text),
-        'white': lambda text: color.white(text),
-        'yellow': lambda text: color.yellow(text),
-        'black_bg': lambda text: color.black_bg(text),
-        'blue_bg': lambda text: color.blue_bg(text),
-        'cyan_bg': lambda text: color.cyan_bg(text),
-        'green_bg': lambda text: color.green_bg(text),
-        'magenta_bg': lambda text: color.magenta_bg(text),
-        'red_bg': lambda text: color.red_bg(text),
-        'white_bg': lambda text: color.white_bg(text),
-        'yellow_bg': lambda text: color.yellow_bg(text),
-        'highlight_black': lambda text: color.highlight_black(text),
-        'highlight_blue': lambda text: color.highlight_blue(text),
-        'highlight_cyan': lambda text: color.highlight_cyan(text),
-        'highlight_green': lambda text: color.highlight_green(text),
-        'highlight_magenta': lambda text: color.highlight_magenta(text),
-        'highlight_red': lambda text: color.highlight_red(text),
-        'highlight_white': lambda text: color.highlight_white(text),
-        'highlight_yellow': lambda text: color.highlight_yellow(text)
+        '256_bright_green': lambda text: color.bold(color.fg256('#00FF00', text)),
+        '256_green': lambda text: color.bold(color.fg256('#00FF00', text)),
+        '256_light_green': lambda text: color.fg256('#99ff00', text),
+        '256_bright_yellow': lambda text: color.bold(color.fg256('#ffdd00', text)),
+        '256_yellow': lambda text: color.fg256('#ffdd00', text),
+        '256_light_yellow': lambda text: color.fg256('#ffff00', text),
+        '256_bright_red': lambda text: color.bold(color.fg256('#ff0000', text)),
+        '256_red': lambda text: color.bold(color.fg256('#ff0000', text)),
+        '256_light_red': lambda text: color.fg256('#ff5500', text),
     }
 
     def __init__(self):
@@ -106,32 +171,62 @@ class CliFormatter(string.Formatter):
         self.dedent = True
 
     def format(self, *args, **kwargs):
+        """
+        You can use 'dedent' to have the formatter de-indent the final string for you which
+        is nice when you are using heredoc style strings that preserve white space in a multiline
+        string.
+
+        :param args:
+        :param kwargs:
+        :return:
+        """
         if 'dedent' in kwargs:
             self.dedent = kwargs['dedent']
             del kwargs['dedent']
         formatted = super(CliFormatter, self).format(*args, **kwargs)
-        #print(formatted)
         if self.dedent:
-            return textwrap.dedent(formatted).strip('\n')
-        else:
-            return formatted
+            formatted = textwrap.dedent(formatted).strip('\n')
+        self.dedent = True
+        self.indent_level = 0
+        return formatted
 
     def vformat(self, format_string, args, kwargs):
-        self.indent_level = len(format_string) - len(format_string.lstrip()) - 1
+        """
+        Need to keep track of the indent level incase we generate new rows of text,
+        e.g. a Table, so the indention level of the generated row matches
+
+        :param format_string:
+        :param args:
+        :param kwargs:
+        :return:
+        """
+        if isinstance(format_string, str):
+            self.indent_level = len(format_string) - len(format_string.lstrip()) - 1
         return super(CliFormatter, self).vformat(format_string, args, kwargs)
 
-    def parse(self, format_string):
-        temp = super(CliFormatter, self).parse(format_string)
-        return temp;
+    def get_value(self, key, args, kwargs):
+        """
+        Normally a key without a matching value would raise an error, but I want to
+        be able to stylize plain text without having to make a variable and stick it
+        in a map, e.g. formatter.format('{This is a string:bold}') instead of
+        formatter.format('{placehold:bold}', {'placeholder': 'This is a string'})
+
+        :param key:
+        :param args:
+        :param kwargs:
+        :return:
+        """
+        try:
+            return super(CliFormatter, self).get_value(key, args, kwargs)
+        except (IndexError, KeyError) as e:
+            return key
 
     def format_field(self, value, format_spec):
-        if format_spec == 'table':
-            return tabulate(value, first_row_header=True, indent_level=self.indent_level)
-        elif format_spec == 'table_no_header':
-            return tabulate(value, first_row_header=False, indent_level=self.indent_level)
+        if format_spec == 'table' or format_spec == 'table_no_header':
+            header = format_spec == 'table'
+            return tabulate(value, first_row_header=header, indent_level=self.indent_level)
         elif format_spec in CliFormatter.STYLES:
             stylized = CliFormatter.STYLES[format_spec](value)
-            #return super(CliFormatter, self).format_field(stylized, format_spec)
             return str(stylized)
         else:
             return super(CliFormatter, self).format_field(value, format_spec)

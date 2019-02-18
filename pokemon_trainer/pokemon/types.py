@@ -41,21 +41,29 @@ class DamageRelation(Enum):
     def readable_name(self):
         return self.name.lower().replace('_', ' ').title()
 
-    def multiplier(self):
-        if 'NORMAL' in self.name:
-            return '1x'
-        elif 'NO' in self.name:
-            return '0x'
+    def multiplier(self, colorize=False):
+        multiplier = '1x'
+        if 'NO_DAMAGE' in self.name:
+            multiplier = '0x'
+            if colorize:
+                multiplier = '{0x:256_bright_red}' if '_TO' in self.name else '{0x:256_bright_green}'
         elif 'QUARTER' in self.name:
-            return '1/4x'
+            multiplier = '1/4x'
+            if colorize:
+                multiplier = '{1/4x:256_red}' if '_TO' in self.name else '{1/4x:256_green}'
         elif 'HALF' in self.name:
-            return '1/2x'
+            multiplier = '1/2x'
+            if colorize:
+                multiplier = '{1/2x:256_light_red}' if '_TO' in self.name else '{1/2x:256_light_green}'
         elif 'DOUBLE' in self.name:
-            return '2x'
+            multiplier = '2x'
+            if colorize:
+                multiplier = '{2x:256_light_red}' if '_FROM' in self.name else '{2x:256_light_green}'
         elif 'QUADRUPLE' in self.name:
-            return '4x'
-        else:
-            return '1x'
+            multiplier = '4x'
+            if colorize:
+                multiplier = '{4x:256_red}' if '_FROM' in self.name else '{4x:256_green}'
+        return multiplier
 
     @staticmethod
     def damage_to():
@@ -121,16 +129,18 @@ class Type(object):
 
     def __str__(self):
         coverage = self._type_coverage.unique()
-        offensive_table = [('Power', 'Types')]
-        defensive_table = [('Power', 'Types')]
+        offensive_table = [('{Power:bold}', '{Types:bold}')]
+        defensive_table = [('{Power:bold}', '{Types:bold}')]
         for damage_relation in DamageRelation.damage_to():
             if len(coverage[damage_relation]) > 0:
-                row = (damage_relation.multiplier(), ', '.join([t.name for t in sorted(coverage[damage_relation])]))
+                multiplier = damage_relation.multiplier(colorize=True)
+                row = (multiplier, ', '.join([t.name for t in sorted(coverage[damage_relation])]))
                 offensive_table.append(row)
 
         for damage_relation in DamageRelation.damage_from():
             if len(coverage[damage_relation]) > 0:
-                row = (damage_relation.multiplier(), ', '.join([t.name for t in sorted(coverage[damage_relation])]))
+                multiplier = damage_relation.multiplier(colorize=True)
+                row = (multiplier, ', '.join([t.name for t in sorted(coverage[damage_relation])]))
                 defensive_table.append(row)
 
         template_data = {
@@ -140,8 +150,10 @@ class Type(object):
         }
         template = """
         {name:bold}
+        
         Offensive Type Effectiveness
         {offense:table}
+        
         Defensive Type Effectiveness
         {defense:table}
         """
@@ -341,11 +353,44 @@ class TypeCoverage(dict):
         self._coverage[key] = []
 
     def __str__(self):
+        offensive_table = [('{Power:bold}', '{Types:bold}')]
+        defensive_table = [('{Power:bold}', '{Types:bold}')]
+        for damage_relation in DamageRelation.damage_to():
+            if len(self[damage_relation]) > 0:
+                multiplier = damage_relation.multiplier(colorize=True)
+                row = (multiplier, ', '.join([t.name for t in sorted(self[damage_relation])]))
+                offensive_table.append(row)
+
+        for damage_relation in DamageRelation.damage_from():
+            if len(self[damage_relation]) > 0:
+                multiplier = damage_relation.multiplier(colorize=True)
+                row = (multiplier, ', '.join([t.name for t in sorted(self[damage_relation])]))
+                defensive_table.append(row)
+
+        template = ''
+        template_data = {}
+        if len(offensive_table) > 1:
+            template += '''
+            Offensive Type Effectiveness
+            {offense:table}
+            '''
+            template_data['offense'] = offensive_table
+        if len(defensive_table) > 1:
+            template += '''
+            Defensive Type Effectiveness
+            {defense:table}
+            '''
+            template_data['defense'] = defensive_table
+
+        return CliFormatter().format(template, **template_data)
+
         str_ = ''
         offensive_table = [('Power', 'Types')]
         defensive_table = [('Power', 'Types')]
         for damage_relation in DamageRelation.damage_to():
             if len(self[damage_relation]) > 0:
+                multiplier = damage_relation.multiplier(colorize=True)
+                row = (multiplier, ', '.join([t.name for t in sorted(coverage[damage_relation])]))
                 row = (damage_relation.multiplier(), ', '.join([t.name for t in sorted(self[damage_relation])]))
                 offensive_table.append(row)
         if len(offensive_table) > 1:
@@ -353,6 +398,7 @@ class TypeCoverage(dict):
 
         for damage_relation in DamageRelation.damage_from():
             if len(self[damage_relation]) > 0:
+                multiplier = damage_relation.multiplier(colorize=True)
                 row = (damage_relation.multiplier(), ', '.join([t.name for t in sorted(self[damage_relation])]))
                 defensive_table.append(row)
         if len(defensive_table) > 1:

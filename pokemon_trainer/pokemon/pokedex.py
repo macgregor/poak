@@ -128,8 +128,8 @@ class Species(object):
 
     def __str__(self):
         type_ = ', '.join([t.name for t in self.types])
-        return '#%03d %-10s (%s)\n%s' \
-               % (self.id, self.name, type_, self.type_coverage().effective_defensive_coverage())
+        return CliFormatter().format('#{id:0>3} {name:bold} ({type})', id=self.id, name=self.name, type=type_) + \
+               '\n\n' + str(self.type_coverage().effective_defensive_coverage())
 
     def __eq__(self, other):
         return self.__dict__ == other.__dict__

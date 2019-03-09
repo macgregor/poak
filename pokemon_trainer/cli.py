@@ -109,7 +109,7 @@ def install_completion(rebuild):
 
 @main.command()
 @click.pass_context
-@click.argument('id_or_name', type=species_argument_type)
+@click.argument('id_or_name', type=species_argument_type, nargs=-1)
 def species(ctx, id_or_name):
     """List details for a Pokemon species, where id_or_name is
     the pokedex name or ID of the Pokemon (e.g. 1 or 'bulbasaur'
@@ -120,17 +120,17 @@ def species(ctx, id_or_name):
     :param id_or_name:
     :return:
     """
-    try:
-        click.echo(Species.search(id_or_name))
-    except ValueError as e:
-        click.echo(e)
-        return 1
+    for id in id_or_name:
+        try:
+            click.echo(Species.search(id))
+        except ValueError as e:
+            click.echo("{} failed: {}".format(id, e))
     return 0
 
 
 @main.command()
 @click.pass_context
-@click.argument('id_or_name', type=types_argument_type)
+@click.argument('id_or_name', type=types_argument_type, nargs=-1)
 def type(ctx, id_or_name):
     """List details for a Pokemon/Move Type, where id_or_name is
     the name or ID of the type (e.g. 16 or \'dragon\' to
@@ -141,16 +141,16 @@ def type(ctx, id_or_name):
     :param id_or_name:
     :return:
     """
-    try:
-        click.echo(Type.search(id_or_name))
-    except ValueError as e:
-        click.echo(e)
-        return 1
+    for id in id_or_name:
+        try:
+            click.echo(Type.search(id))
+        except ValueError as e:
+            click.echo("{} failed: {}".format(id, e))
     return 0
 
 @main.command()
 @click.pass_context
-@click.argument('id_or_name', type=moves_argument_type)
+@click.argument('id_or_name', type=moves_argument_type, nargs=-1)
 def move(ctx, id_or_name):
     """List details for a Move, where id_or_name is
     the name or ID of the move (e.g. 15 or \'cut\' to
@@ -161,11 +161,11 @@ def move(ctx, id_or_name):
     :param id_or_name:
     :return:
     """
-    try:
-        click.echo(Move.search(id_or_name))
-    except ValueError as e:
-        click.echo(e)
-        return 1
+    for id in id_or_name:
+        try:
+            click.echo(Move.search(id))
+        except ValueError as e:
+            click.echo("{} failed: {}".format(id, e))
     return 0
 
 
